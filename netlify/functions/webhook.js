@@ -1,4 +1,4 @@
-// netlify/functions/webhook.js - SMART CREATE OR UPDATE
+// netlify/functions/webhook.js - UPDATED FOR EXACT SCHEMA MATCH
 const { createClient } = require('@supabase/supabase-js')
 
 const supabaseUrl = process.env.SUPABASE_URL
@@ -48,19 +48,26 @@ exports.handler = async (event, context) => {
             try {
                 console.log(`Processing: ${beachRecord.name}`)
                 
+                if (!beachRecord.name) {
+                    console.log('⚠️ Skipping record without name')
+                    continue
+                }
+                
                 // Create clean place_id from beach name
                 const placeId = beachRecord.name
                     .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '') // Remove accents
                     .replace(/\s+/g, '_')
                     .replace(/[^a-z0-9_]/g, '')
                     .replace(/_+/g, '_')
                     .replace(/^_|_$/g, '')
                 
-                // Check if beach already exists
+                // Check if beach already exists by name (more reliable than place_id)
                 let { data: existingBeach, error: findError } = await supabase
                     .from('beaches')
                     .select('id')
-                    .eq('place_id', placeId)
+                    .eq('name', beachRecord.name)
                     .single()
 
                 let beachId
@@ -69,18 +76,30 @@ exports.handler = async (event, context) => {
                     // Beach exists - just get the ID
                     beachId = existingBeach.id
                     console.log(`✅ Found existing beach: ${beachRecord.name}`)
+                    
+                    // Update municipality if we have new data
+                    if (beachRecord.municipality) {
+                        await supabase
+                            .from('beaches')
+                            .update({ 
+                                municipality: beachRecord.municipality,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', beachId)
+                    }
+                    
                 } else {
-                    // Beach doesn't exist - create it (without lat/lng for now)
+                    // Beach doesn't exist - create it
                     const { data: newBeach, error: insertError } = await supabase
                         .from('beaches')
                         .insert({
                             place_id: placeId,
                             name: beachRecord.name,
-                            municipality: beachRecord.municipality || 'Unknown',
+                            municipality: beachRecord.municipality || null,
+                            description: `Beach in ${beachRecord.municipality || 'Mallorca'}`,
                             // Leave lat/lng null - you'll add manually later
                             latitude: null,
-                            longitude: null,
-                            description: `Beach in ${beachRecord.municipality || 'Mallorca'}`
+                            longitude: null
                         })
                         .select('id')
                         .single()
@@ -101,15 +120,11 @@ exports.handler = async (event, context) => {
                     .from('beach_conditions')
                     .insert({
                         beach_id: beachId,
-                        occupancy_percent: beachRecord.occupancy_percent || null,
+                        occupancy_percent: beachRecord.occupancy_percent,
                         flag_status: beachRecord.flag_status || 'green',
                         has_jellyfish: Boolean(beachRecord.has_jellyfish),
-                        water_temperature: beachRecord.water_temperature || null,
-                        air_temperature: beachRecord.air_temperature || null,
-                        wind_speed: beachRecord.wind_speed || null,
-                        wave_height: beachRecord.wave_height || null,
                         recorded_at: beachRecord.scraped_at || new Date().toISOString(),
-                        source: 'apify_real'
+                        source: 'apify_scraper'
                     })
 
                 if (conditionsError) {
