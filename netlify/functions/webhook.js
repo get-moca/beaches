@@ -26,12 +26,26 @@ exports.handler = async (event, context) => {
         const body = JSON.parse(event.body)
         console.log('Raw webhook body:', JSON.stringify(body, null, 2))
         
-        // Get beach data from Apify webhook
-        // The data is in eventData.data for Apify webhooks
-        const apifyData = body.eventData?.data || body.data || []
+        // Get the dataset ID from the webhook
+        const datasetId = body.resource?.defaultDatasetId
+        const actorRunId = body.eventData?.actorRunId
+        
+        if (!datasetId) {
+            console.log('❌ No dataset ID found in webhook')
+            return {
+                statusCode: 400,
+                body: JSON.stringify({ message: 'No dataset ID found' })
+            }
+        }
+        
+        console.log(`📊 Fetching data from dataset: ${datasetId}`)
+        
+        // Fetch the actual data from Apify API
+        const apifyResponse = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?format=json`)
+        const apifyData = await apifyResponse.json()
         
         if (!Array.isArray(apifyData)) {
-            console.log('❌ No valid array data found')
+            console.log('❌ No valid array data found from Apify API')
             return {
                 statusCode: 400,
                 body: JSON.stringify({ message: 'No valid beach data found' })
