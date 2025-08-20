@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Coordinate Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 100px;
+        }
+        button {
+            background: #0ea5e9;
+            color: white;
+            cursor: pointer;
+            width: auto;
+            padding: 10px 20px;
+        }
+        .result {
+            background: #f0f9ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            border-left: 4px solid #0ea5e9;
+        }
+        .example {
+            background: #fef3c7;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗺️ DMS to Decimal Converter</h1>
+        
+        <div class="example">
+            <strong>Example format:</strong><br>
+            3° 5' 29.7290"E / 39° 54' 43.8121"N
+        </div>
+        
+        <h3>Longitude (East/West)</h3>
+        <input type="number" id="lonDeg" placeholder="Degrees" step="any">°
+        <input type="number" id="lonMin" placeholder="Minutes" step="any">'
+        <input type="number" id="lonSec" placeholder="Seconds" step="any">"
+        <select id="lonDir">
+            <option value="E">E</option>
+            <option value="W">W</option>
+        </select>
+        
+        <h3>Latitude (North/South)</h3>
+        <input type="number" id="latDeg" placeholder="Degrees" step="any">°
+        <input type="number" id="latMin" placeholder="Minutes" step="any">'
+        <input type="number" id="latSec" placeholder="Seconds" step="any">"
+        <select id="latDir">
+            <option value="N">N</option>
+            <option value="S">S</option>
+        </select>
+        
+        <br><br>
+        <button onclick="convert()">Convert to Decimal</button>
+        <button onclick="loadExample()">Load Example</button>
+        
+        <div id="result" class="result" style="display: none;">
+            <h3>Decimal Coordinates:</h3>
+            <p><strong>Latitude:</strong> <span id="decLat"></span></p>
+            <p><strong>Longitude:</strong> <span id="decLon"></span></p>
+            <p><strong>For Supabase:</strong></p>
+            <code>latitude: <span id="dbLat"></span><br>longitude: <span id="dbLon"></span></code>
+        </div>
+    </div>
+
+    <script>
+        function convert() {
+            // Get longitude values
+            const lonDeg = parseFloat(document.getElementById('lonDeg').value) || 0;
+            const lonMin = parseFloat(document.getElementById('lonMin').value) || 0;
+            const lonSec = parseFloat(document.getElementById('lonSec').value) || 0;
+            const lonDir = document.getElementById('lonDir').value;
+            
+            // Get latitude values
+            const latDeg = parseFloat(document.getElementById('latDeg').value) || 0;
+            const latMin = parseFloat(document.getElementById('latMin').value) || 0;
+            const latSec = parseFloat(document.getElementById('latSec').value) || 0;
+            const latDir = document.getElementById('latDir').value;
+            
+            // Convert to decimal
+            let decLon = lonDeg + (lonMin / 60) + (lonSec / 3600);
+            let decLat = latDeg + (latMin / 60) + (latSec / 3600);
+            
+            // Apply direction
+            if (lonDir === 'W') decLon = -decLon;
+            if (latDir === 'S') decLat = -decLat;
+            
+            // Round to 6 decimal places
+            decLon = Math.round(decLon * 1000000) / 1000000;
+            decLat = Math.round(decLat * 1000000) / 1000000;
+            
+            // Display results
+            document.getElementById('decLat').textContent = decLat;
+            document.getElementById('decLon').textContent = decLon;
+            document.getElementById('dbLat').textContent = decLat;
+            document.getElementById('dbLon').textContent = decLon;
+            document.getElementById('result').style.display = 'block';
+        }
+        
+        function loadExample() {
+            // Load your example coordinates
+            document.getElementById('lonDeg').value = 3;
+            document.getElementById('lonMin').value = 5;
+            document.getElementById('lonSec').value = 29.7290;
+            document.getElementById('lonDir').value = 'E';
+            
+            document.getElementById('latDeg').value = 39;
+            document.getElementById('latMin').value = 54;
+            document.getElementById('latSec').value = 43.8121;
+            document.getElementById('latDir').value = 'N';
+            
+            convert();
+        }
+        
+        // Load example on page load
+        window.onload = loadExample;
+    </script>
+</body>
+</html>
