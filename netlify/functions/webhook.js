@@ -32,11 +32,31 @@ exports.handler = async (event, context) => {
             process.env.SUPABASE_SERVICE_ROLE_KEY // Use service role key for full access
         );
 
-        // Parse the webhook payload
-        const apifyData = JSON.parse(event.body);
-        console.log('Received Apify data:', apifyData);
+        // Parse the webhook payload from Apify
+        const apifyWebhook = JSON.parse(event.body);
+        console.log('Received Apify webhook:', apifyWebhook);
 
-        // Process each scraped item
+        // Extract dataset ID from the run resource
+        const datasetId = apifyWebhook.resource?.defaultDatasetId;
+        
+        if (!datasetId) {
+            throw new Error('No dataset ID found in webhook payload');
+        }
+
+        console.log('Fetching data from dataset:', datasetId);
+
+        // Fetch the actual scraped data from Apify dataset
+        const datasetUrl = `https://api.apify.com/v2/datasets/${datasetId}/items`;
+        const response = await fetch(datasetUrl);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to fetch dataset: ${response.status} ${response.statusText}`);
+        }
+
+        const beachData = await response.json();
+        console.log(`Fetched ${beachData.length} beach records from Apify`);
+
+        // Process the beach data
         const results = {
             processed: 0,
             errors: 0,
@@ -45,14 +65,22 @@ exports.handler = async (event, context) => {
         };
 
         // Handle both single objects and arrays
-        const items = Array.isArray(apifyData) ? apifyData : [apifyData];
+        const items = Array.isArray(beachData) ? beachData : [beachData];
 
         for (const item of items) {
             try {
                 // Skip empty items
                 if (!item.name || !item.source_url) {
                     console.log('Skipping item without name or source_url:', item);
+                    results.errors++;
                     continue;
+                }
+
+                // Log data completeness
+                const dataFields = ['occupancy_percent_raw', 'flag_status', 'has_jellyfish'];
+                const missingFields = dataFields.filter(field => item[field] === null || item[field] === undefined);
+                if (missingFields.length > 0) {
+                    console.log(`Beach ${item.name} missing data for: ${missingFields.join(', ')}`);
                 }
 
                 // Check if beach exists by source_url
@@ -141,6 +169,8 @@ exports.handler = async (event, context) => {
         if (cleanupError) {
             console.error('Cleanup error:', cleanupError);
         }
+
+        console.log('Processing complete:', results);
 
         return {
             statusCode: 200,
