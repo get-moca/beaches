@@ -54,7 +54,8 @@ exports.handler = async (event, context) => {
                 }
                 
                 // Create clean place_id from beach name AND municipality
-                const placeId = `${beachRecord.name}_${beachRecord.municipality || 'unknown'}`
+                const municipality = beachRecord.municipality || 'Unknown';
+                const placeId = `${beachRecord.name}_${municipality}`
                     .toLowerCase()
                     .normalize('NFD')
                     .replace(/[\u0300-\u036f]/g, '') // Remove accents
@@ -63,12 +64,15 @@ exports.handler = async (event, context) => {
                     .replace(/_+/g, '_')
                     .replace(/^_|_$/g, '')
                 
+                // Normalize municipality (handle null/undefined)
+                const municipality = beachRecord.municipality || 'Unknown';
+                
                 // Check if beach already exists by name AND municipality (more precise)
                 let { data: existingBeach, error: findError } = await supabase
                     .from('beaches')
                     .select('id')
                     .eq('name', beachRecord.name)
-                    .eq('municipality', beachRecord.municipality || 'Unknown')
+                    .eq('municipality', municipality)
                     .maybeSingle()
 
                 let beachId
@@ -79,11 +83,11 @@ exports.handler = async (event, context) => {
                     console.log(`✅ Found existing beach: ${beachRecord.name}`)
                     
                     // Update municipality if we have new data
-                    if (beachRecord.municipality) {
+                    if (municipality && municipality !== 'Unknown') {
                         await supabase
                             .from('beaches')
                             .update({ 
-                                municipality: beachRecord.municipality,
+                                municipality: municipality,
                                 updated_at: new Date().toISOString()
                             })
                             .eq('id', beachId)
@@ -96,8 +100,8 @@ exports.handler = async (event, context) => {
                         .insert({
                             place_id: placeId,
                             name: beachRecord.name,
-                            municipality: beachRecord.municipality || null,
-                            description: `Beach in ${beachRecord.municipality || 'Mallorca'}`,
+                            municipality: municipality,
+                            description: `Beach in ${municipality}`,
                             // Leave lat/lng null - you'll add manually later
                             latitude: null,
                             longitude: null
