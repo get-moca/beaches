@@ -1,175 +1,166 @@
-// netlify/functions/webhook.js - UPDATED FOR EXACT SCHEMA MATCH
-const { createClient } = require('@supabase/supabase-js')
+// netlify/functions/webhook.js
+// Processes Apify beach data and updates Supabase
 
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
+const { createClient } = require('@supabase/supabase-js');
 
 exports.handler = async (event, context) => {
+    // CORS headers
+    const headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Content-Type': 'application/json'
+    };
+
+    // Handle preflight requests
+    if (event.httpMethod === 'OPTIONS') {
+        return { statusCode: 200, headers, body: '' };
+    }
+
     if (event.httpMethod !== 'POST') {
         return {
             statusCode: 405,
-            body: JSON.stringify({ message: 'Method not allowed' })
-        }
+            headers,
+            body: JSON.stringify({ error: 'Method not allowed' })
+        };
     }
 
     try {
-        console.log('📥 Received Apify webhook for beach data')
-        
-        const body = JSON.parse(event.body)
-        const datasetId = body.resource?.defaultDatasetId
-        
-        if (!datasetId) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ message: 'No dataset ID found' })
-            }
-        }
-        
-        console.log(`📊 Fetching beach data from dataset: ${datasetId}`)
-        
-        const apifyResponse = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?format=json`)
-        const apifyData = await apifyResponse.json()
-        
-        if (!Array.isArray(apifyData)) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ message: 'No valid beach data found' })
-            }
-        }
+        // Initialize Supabase client
+        const supabase = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY // Use service role key for full access
+        );
 
-        console.log(`📊 Processing ${apifyData.length} beaches`)
+        // Parse the webhook payload
+        const apifyData = JSON.parse(event.body);
+        console.log('Received Apify data:', apifyData);
 
-        let created = 0
-        let updated = 0
-        let errors = 0
+        // Process each scraped item
+        const results = {
+            processed: 0,
+            errors: 0,
+            beaches_added: 0,
+            conditions_added: 0
+        };
 
-        for (const beachRecord of apifyData) {
+        // Handle both single objects and arrays
+        const items = Array.isArray(apifyData) ? apifyData : [apifyData];
+
+        for (const item of items) {
             try {
-                console.log(`Processing: ${beachRecord.name}`)
-                
-                if (!beachRecord.name) {
-                    console.log('⚠️ Skipping record without name')
-                    continue
+                // Skip empty items
+                if (!item.name || !item.source_url) {
+                    console.log('Skipping item without name or source_url:', item);
+                    continue;
                 }
-                
-                // Create clean place_id from beach name AND municipality
-                const municipality = beachRecord.municipality || 'Unknown';
-                const placeId = `${beachRecord.name}_${municipality}`
-                    .toLowerCase()
-                    .normalize('NFD')
-                    .replace(/[\u0300-\u036f]/g, '') // Remove accents
-                    .replace(/\s+/g, '_')
-                    .replace(/[^a-z0-9_]/g, '')
-                    .replace(/_+/g, '_')
-                    .replace(/^_|_$/g, '')
-                
-                // Normalize municipality (handle null/undefined)
-                const municipality = beachRecord.municipality || 'Unknown';
-                
-                // Check if beach already exists by name AND municipality (more precise)
-                let { data: existingBeach, error: findError } = await supabase
+
+                // Check if beach exists by source_url
+                const { data: existingBeach, error: findError } = await supabase
                     .from('beaches')
                     .select('id')
-                    .eq('name', beachRecord.name)
-                    .eq('municipality', municipality)
-                    .maybeSingle()
+                    .eq('source_url', item.source_url)
+                    .single();
 
-                let beachId
+                if (findError && findError.code !== 'PGRST116') { // PGRST116 = no rows returned
+                    throw findError;
+                }
 
-                if (existingBeach) {
-                    // Beach exists - just get the ID
-                    beachId = existingBeach.id
-                    console.log(`✅ Found existing beach: ${beachRecord.name}`)
-                    
-                    // Update municipality if we have new data
-                    if (municipality && municipality !== 'Unknown') {
-                        await supabase
-                            .from('beaches')
-                            .update({ 
-                                municipality: municipality,
-                                updated_at: new Date().toISOString()
-                            })
-                            .eq('id', beachId)
-                    }
-                    
-                } else {
-                    // Beach doesn't exist - create it
+                let beachId;
+
+                if (!existingBeach) {
+                    // Insert new beach
                     const { data: newBeach, error: insertError } = await supabase
                         .from('beaches')
                         .insert({
-                            place_id: placeId,
-                            name: beachRecord.name,
-                            municipality: municipality,
-                            description: `Beach in ${municipality}`,
-                            // Leave lat/lng null - you'll add manually later
-                            latitude: null,
-                            longitude: null
+                            name: item.name,
+                            municipality: item.municipality,
+                            source_url: item.source_url,
+                            // latitude and longitude will be added manually later
                         })
                         .select('id')
-                        .single()
+                        .single();
 
-                    if (insertError) {
-                        console.error(`❌ Error creating beach ${beachRecord.name}:`, insertError)
-                        errors++
-                        continue
-                    }
+                    if (insertError) throw insertError;
+                    
+                    beachId = newBeach.id;
+                    results.beaches_added++;
+                    console.log(`Added new beach: ${item.name} (ID: ${beachId})`);
+                } else {
+                    beachId = existingBeach.id;
+                    
+                    // Update beach name/municipality in case they changed
+                    const { error: updateError } = await supabase
+                        .from('beaches')
+                        .update({
+                            name: item.name,
+                            municipality: item.municipality,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', beachId);
 
-                    beachId = newBeach.id
-                    created++
-                    console.log(`🆕 Created new beach: ${beachRecord.name}`)
+                    if (updateError) throw updateError;
                 }
 
-                // Always insert NEW condition record (creates history)
-                const { error: conditionsError } = await supabase
+                // Insert new beach condition
+                const { error: conditionError } = await supabase
                     .from('beach_conditions')
                     .insert({
                         beach_id: beachId,
-                        occupancy_percent: beachRecord.occupancy_percent,
-                        flag_status: beachRecord.flag_status || 'green',
-                        has_jellyfish: Boolean(beachRecord.has_jellyfish),
-                        recorded_at: beachRecord.scraped_at || new Date().toISOString(),
-                        source: 'apify_scraper'
-                    })
+                        occupancy_percent_raw: item.occupancy_percent_raw,
+                        occupancy_display_value: item.occupancy_display_value,
+                        flag_status: item.flag_status,
+                        has_jellyfish: item.has_jellyfish,
+                        air_temperature: item.air_temperature,
+                        water_temperature: item.water_temperature,
+                        wind_speed: item.wind_speed,
+                        wave_height: item.wave_height,
+                        scraped_at: item.scraped_at || new Date().toISOString()
+                    });
 
-                if (conditionsError) {
-                    console.error(`❌ Error inserting conditions for ${beachRecord.name}:`, conditionsError)
-                    errors++
-                } else {
-                    console.log(`🌊 Added conditions for: ${beachRecord.name}`)
-                    updated++
-                }
+                if (conditionError) throw conditionError;
 
-            } catch (beachError) {
-                console.error(`❌ Error processing ${beachRecord.name}:`, beachError)
-                errors++
+                results.conditions_added++;
+                results.processed++;
+                
+                console.log(`Updated conditions for beach: ${item.name}`);
+
+            } catch (itemError) {
+                console.error(`Error processing item ${item.name}:`, itemError);
+                results.errors++;
             }
         }
 
-        console.log(`✅ Processing complete:`)
-        console.log(`  - ${created} new beaches created`)
-        console.log(`  - ${updated} condition records added`)
-        console.log(`  - ${errors} errors`)
-        
-        return {
-            statusCode: 200,
-            body: JSON.stringify({ 
-                message: 'Beach data processed successfully',
-                created: created,
-                updated: updated,
-                errors: errors,
-                total: apifyData.length
-            })
+        // Clean up old condition records (keep only last 24 hours)
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const { error: cleanupError } = await supabase
+            .from('beach_conditions')
+            .delete()
+            .lt('scraped_at', twentyFourHoursAgo);
+
+        if (cleanupError) {
+            console.error('Cleanup error:', cleanupError);
         }
 
+        return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+                success: true,
+                message: 'Beach data processed successfully',
+                results
+            })
+        };
+
     } catch (error) {
-        console.error('❌ Webhook failed:', error)
+        console.error('Webhook error:', error);
         return {
             statusCode: 500,
-            body: JSON.stringify({ 
-                message: 'Internal server error',
-                error: error.message 
+            headers,
+            body: JSON.stringify({
+                success: false,
+                error: error.message
             })
-        }
+        };
     }
-}
+};
