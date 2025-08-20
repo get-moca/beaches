@@ -130,7 +130,7 @@ exports.handler = async (event, context) => {
                     if (updateError) throw updateError;
                 }
 
-                // Insert new beach condition
+                // Insert new beach condition (lean version - only essential data)
                 const { error: conditionError } = await supabase
                     .from('beach_conditions')
                     .insert({
@@ -139,10 +139,6 @@ exports.handler = async (event, context) => {
                         occupancy_display_value: item.occupancy_display_value,
                         flag_status: item.flag_status,
                         has_jellyfish: item.has_jellyfish,
-                        air_temperature: item.air_temperature,
-                        water_temperature: item.water_temperature,
-                        wind_speed: item.wind_speed,
-                        wave_height: item.wave_height,
                         scraped_at: item.scraped_at || new Date().toISOString()
                     });
 
@@ -194,4 +190,3 @@ exports.handler = async (event, context) => {
         };
     }
 };
-
