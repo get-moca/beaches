@@ -5,30 +5,3 @@
     "@supabase/supabase-js": "^2.0.0"
   }
 }
-
-{
-  "name": "mallorca-beach-map",
-  "version": "1.0.0",
-  "description": "Real-time beach conditions map for Mallorca",
-  "main": "index.html",
-  "scripts": {
-    "dev": "netlify dev",
-    "build": "echo 'No build process needed'",
-    "deploy": "netlify deploy --prod"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.39.0"
-  },
-  "devDependencies": {
-    "netlify-cli": "^17.0.0"
-  },
-  "keywords": [
-    "mallorca",
-    "beaches",
-    "real-time",
-    "conditions",
-    "map"
-  ],
-  "author": "Your Name",
-  "license": "MIT"
-}
