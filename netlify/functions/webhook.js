@@ -53,8 +53,8 @@ exports.handler = async (event, context) => {
                     continue
                 }
                 
-                // Create clean place_id from beach name
-                const placeId = beachRecord.name
+                // Create clean place_id from beach name AND municipality
+                const placeId = `${beachRecord.name}_${beachRecord.municipality || 'unknown'}`
                     .toLowerCase()
                     .normalize('NFD')
                     .replace(/[\u0300-\u036f]/g, '') // Remove accents
@@ -63,12 +63,13 @@ exports.handler = async (event, context) => {
                     .replace(/_+/g, '_')
                     .replace(/^_|_$/g, '')
                 
-                // Check if beach already exists by name (more reliable than place_id)
+                // Check if beach already exists by name AND municipality (more precise)
                 let { data: existingBeach, error: findError } = await supabase
                     .from('beaches')
                     .select('id')
                     .eq('name', beachRecord.name)
-                    .single()
+                    .eq('municipality', beachRecord.municipality || 'Unknown')
+                    .maybeSingle()
 
                 let beachId
 
