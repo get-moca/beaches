@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mallorca Beach Intelligence</title>
+    <title>Mallorca Beach Live Conditions</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -20,7 +20,7 @@
         
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            background: linear-gradient(135deg, #0891b2 0%, #0284c7 50%, #0ea5e9 100%);
             min-height: 100vh;
             color: #1f2937;
         }
@@ -41,17 +41,16 @@
             font-size: 3rem;
             font-weight: 700;
             margin-bottom: 10px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            text-shadow: 2px 2px 20px rgba(0,0,0,0.3);
             letter-spacing: -0.02em;
         }
         
         .header p {
             font-size: 1.3rem;
             font-weight: 400;
-            opacity: 0.95;
+            opacity: 0.9;
             max-width: 600px;
             margin: 0 auto;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
         }
         
         .main-content {
@@ -72,7 +71,7 @@
             backdrop-filter: blur(10px);
             border-radius: 15px;
             padding: 20px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             border: 1px solid rgba(255,255,255,0.2);
         }
         
@@ -111,25 +110,47 @@
         }
         
         .filter-btn:hover {
-            border-color: #0ea5e9;
-            color: #0ea5e9;
+            border-color: #0891b2;
+            color: #0891b2;
             transform: translateY(-1px);
         }
         
         .filter-btn.active {
-            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            background: linear-gradient(135deg, #0891b2, #0284c7);
             color: white;
-            border-color: #0ea5e9;
-            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+            border-color: #0891b2;
+            box-shadow: 0 4px 12px rgba(8, 145, 178, 0.3);
         }
         
-        /* Beach-specific styling */
-        .crowd-btn {
+        /* Special styling for flag status buttons */
+        .flag-btn {
             position: relative;
             padding-left: 32px;
         }
         
-        .crowd-btn::before {
+        .flag-btn::before {
+            content: '';
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        .flag-btn[data-flag="green"]::before { background: #16a34a; }
+        .flag-btn[data-flag="yellow"]::before { background: #eab308; }
+        .flag-btn[data-flag="red"]::before { background: #dc2626; }
+        
+        /* Occupancy level styling */
+        .occupancy-btn {
+            position: relative;
+            padding-left: 32px;
+        }
+        
+        .occupancy-btn::before {
             content: '';
             position: absolute;
             left: 12px;
@@ -141,69 +162,82 @@
             border: 1px solid rgba(255,255,255,0.3);
         }
         
-        .crowd-btn[data-crowd="peaceful"]::before { background: #16a34a; }
-        .crowd-btn[data-crowd="moderate"]::before { background: #eab308; }
-        .crowd-btn[data-crowd="busy"]::before { background: #dc2626; }
+        .occupancy-btn[data-level="low"]::before { background: #16a34a; }
+        .occupancy-btn[data-level="medium"]::before { background: #eab308; }
+        .occupancy-btn[data-level="high"]::before { background: #dc2626; }
         
-        .flag-btn {
-            position: relative;
-            padding-left: 28px;
+        /* Jellyfish indicator */
+        .jellyfish-btn[data-jellyfish="true"]::after {
+            content: '🪼';
+            margin-left: 6px;
         }
-        
-        .flag-btn::before {
-            content: '';
-            position: absolute;
-            left: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 14px;
-            height: 10px;
-            border-radius: 2px;
-        }
-        
-        .flag-btn[data-flag="green"]::before { background: #16a34a; }
-        .flag-btn[data-flag="yellow"]::before { background: #eab308; }
-        .flag-btn[data-flag="red"]::before { background: #dc2626; }
         
         .map-container {
             background: white;
-            border-radius: 15px;
+            border-radius: 20px;
             overflow: hidden;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
             border: 1px solid rgba(255,255,255,0.2);
         }
         
         .sidebar {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
-            border-radius: 15px;
+            border-radius: 20px;
             padding: 25px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
             border: 1px solid rgba(255,255,255,0.2);
             height: fit-content;
         }
         
-        .update-display {
-            background: linear-gradient(135deg, #0c4a6e, #1e40af);
+        .time-display {
+            background: linear-gradient(135deg, #0891b2, #0284c7);
             color: white;
             padding: 20px;
             border-radius: 15px;
             text-align: center;
             margin-bottom: 25px;
-            box-shadow: 0 4px 16px rgba(12, 74, 110, 0.3);
+            box-shadow: 0 8px 25px rgba(8, 145, 178, 0.3);
         }
         
-        .update-display h4 {
+        .time-display h4 {
             font-size: 1rem;
             font-weight: 500;
             margin-bottom: 8px;
             opacity: 0.9;
         }
         
-        .update-display .current-time {
+        .time-display .current-time {
             font-size: 1.6rem;
             font-weight: 700;
             line-height: 1.2;
+        }
+        
+        .stats-container {
+            margin-bottom: 25px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 0.9rem;
+        }
+        
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        .stat-value {
+            color: #374151;
+            font-weight: 600;
         }
         
         .legend {
@@ -225,7 +259,7 @@
             font-size: 0.9rem;
         }
         
-        .legend-color {
+        .legend-icon {
             width: 18px;
             height: 18px;
             border-radius: 50%;
@@ -233,10 +267,10 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
         
-        .flag-indicator {
+        .legend-flag {
             width: 18px;
             height: 12px;
-            border-radius: 3px;
+            border-radius: 2px;
             margin-right: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
@@ -319,396 +353,55 @@
             margin: 15px;
             font-family: 'Inter', sans-serif;
         }
+        
+        /* Loading state */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: #6b7280;
+            font-size: 1.1rem;
+        }
+        
+        .loading::before {
+            content: '';
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e5e7eb;
+            border-top: 2px solid #0891b2;
+            border-radius: 50%;
+            margin-right: 10px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1>🏖️ Mallorca Beach Intelligence</h1>
-            <p>Real-time beach conditions and crowd levels across Mallorca's coastline</p>
+            <h1>🏖️ Mallorca Beach Conditions</h1>
+            <p>Real-time beach occupancy, safety flags, and marine conditions across the island</p>
         </header>
         
         <div class="main-content">
             <div class="map-section">
                 <div class="filters-container">
                     <div class="filter-section">
-                        <div class="filters-title">🏖️ Filter by Beach Type</div>
+                        <div class="filters-title">Filter by Occupancy Level</div>
                         <div class="filter-buttons">
-                            <button class="filter-btn active" data-type="all">All Beaches</button>
-                            <button class="filter-btn" data-type="urban">Urban</button>
-                            <button class="filter-btn" data-type="natural">Natural</button>
-                            <button class="filter-btn" data-type="family">Family</button>
-                            <button class="filter-btn" data-type="secluded">Secluded</button>
+                            <button class="filter-btn active occupancy-btn" data-occupancy="all">All Levels</button>
+                            <button class="filter-btn occupancy-btn" data-occupancy="low" data-level="low">Low (0-33%)</button>
+                            <button class="filter-btn occupancy-btn" data-occupancy="medium" data-level="medium">Medium (34-66%)</button>
+                            <button class="filter-btn occupancy-btn" data-occupancy="high" data-level="high">High (67%+)</button>
                         </div>
                     </div>
                     
                     <div class="filter-section">
-                        <div class="filters-title">👥 Filter by Crowd Level</div>
+                        <div class="filters-title">Filter by Safety Flag</div>
                         <div class="filter-buttons">
-                            <button class="filter-btn active crowd-btn" data-crowd="all">All Levels</button>
-                            <button class="filter-btn crowd-btn" data-crowd="peaceful">Peaceful (0-40%)</button>
-                            <button class="filter-btn crowd-btn" data-crowd="moderate">Moderate (40-70%)</button>
-                            <button class="filter-btn crowd-btn" data-crowd="busy">Busy (70-100%)</button>
-                        </div>
-                    </div>
-                    
-                    <div class="filter-section">
-                        <div class="filters-title">🚩 Filter by Safety Conditions</div>
-                        <div class="filter-buttons">
-                            <button class="filter-btn active" data-condition="all">All Conditions</button>
-                            <button class="filter-btn flag-btn" data-flag="green" data-condition="green">Safe Swimming</button>
-                            <button class="filter-btn flag-btn" data-flag="yellow" data-condition="yellow">Caution</button>
-                            <button class="filter-btn flag-btn" data-flag="red" data-condition="red">Dangerous</button>
-                            <button class="filter-btn" data-condition="no-jellyfish">🚫 No Jellyfish</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="map-container">
-                    <div id="map"></div>
-                </div>
-            </div>
-            
-            <div class="sidebar">
-                <div class="ad-space">
-                    Beach Gear Rental
-                    <small>Premium umbrellas, chairs & water sports</small>
-                </div>
-                
-                <div class="update-display">
-                    <h4>🌊 Beach Conditions Update</h4>
-                    <div class="current-time" id="currentTime">Loading...</div>
-                </div>
-                
-                <div class="legend">
-                    <h4>🏖️ Beach Crowd Levels</h4>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #16a34a;"></div>
-                        <span>Peaceful (0-40%)</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #eab308;"></div>
-                        <span>Moderate (40-70%)</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="legend-color" style="background: #dc2626;"></div>
-                        <span>Busy (70-100%)</span>
-                    </div>
-                    
-                    <h4 style="margin-top: 20px;">🚩 Safety Flags</h4>
-                    <div class="legend-item">
-                        <div class="flag-indicator" style="background: #16a34a;"></div>
-                        <span>Safe Swimming</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="flag-indicator" style="background: #eab308;"></div>
-                        <span>Caution Advised</span>
-                    </div>
-                    <div class="legend-item">
-                        <div class="flag-indicator" style="background: #dc2626;"></div>
-                        <span>Dangerous Conditions</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Scripts -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <script>
-        // 🔧 REPLACE THESE WITH YOUR SUPABASE CREDENTIALS
-        const SUPABASE_URL = 'https://hvzekmntkhjslymdbxvk.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh2emVrbW50a2hqc2x5bWRieHZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU2ODczNDgsImV4cCI6MjA3MTI2MzM0OH0.QxHJiW8Bt7JVri-OkmxqDs_W2X_SKNhHVs9St97g3pY';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        // Initialize map centered on Mallorca
-        const map = L.map('map').setView([39.5716, 2.6501], 10);
-
-        // Add beautiful tile layer
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 18,
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-
-        // Store data and markers
-        let beachesData = [];
-        let currentMarkers = [];
-        let activeFilters = {
-            type: 'all',
-            crowd: 'all',
-            condition: 'all'
-        };
-
-        // Beach crowd color function
-        function getCrowdColor(occupancy) {
-            if (occupancy >= 70) return '#dc2626'; // Busy - Red
-            if (occupancy >= 40) return '#eab308'; // Moderate - Yellow  
-            return '#16a34a'; // Peaceful - Green
-        }
-
-        // Flag status color function
-        function getFlagColor(status) {
-            switch (status.toLowerCase()) {
-                case 'red': return '#dc2626';
-                case 'yellow': return '#eab308';
-                case 'green': 
-                default: return '#16a34a';
-            }
-        }
-
-        // Load beach data from Supabase
-        async function loadBeachData() {
-            try {
-                console.log('Loading beach data from Supabase...');
-                
-                const { data: beaches, error } = await supabase
-                    .from('beaches')
-                    .select(`
-                        *,
-                        beach_conditions!inner (
-                            occupancy_percent,
-                            flag_status,
-                            has_jellyfish,
-                            recorded_at
-                        )
-                    `)
-                    .order('recorded_at', { foreignTable: 'beach_conditions', ascending: false });
-
-                if (error) {
-                    console.error('Supabase error:', error);
-                    throw error;
-                }
-
-                beachesData = beaches;
-                console.log(`✅ Loaded ${beaches.length} beaches with conditions`);
-                
-                updateBeachDisplay();
-                updateTimeDisplay();
-
-            } catch (error) {
-                console.error('❌ Error loading beach data:', error);
-                
-                // Fallback to sample data if Supabase fails
-                console.log('Using fallback sample data...');
-                beachesData = [
-                    {
-                        id: 1,
-                        name: 'Playa de Palma',
-                        municipality: 'Palma',
-                        latitude: 39.5187,
-                        longitude: 2.7235,
-                        beach_conditions: [{
-                            occupancy_percent: 65,
-                            flag_status: 'green',
-                            has_jellyfish: false,
-                            recorded_at: new Date().toISOString()
-                        }]
-                    },
-                    {
-                        id: 2,
-                        name: 'Cala Major',
-                        municipality: 'Palma',
-                        latitude: 39.5579,
-                        longitude: 2.6196,
-                        beach_conditions: [{
-                            occupancy_percent: 45,
-                            flag_status: 'yellow',
-                            has_jellyfish: false,
-                            recorded_at: new Date().toISOString()
-                        }]
-                    },
-                    {
-                        id: 3,
-                        name: 'Es Trenc',
-                        municipality: 'Campos',
-                        latitude: 39.3511,
-                        longitude: 3.0267,
-                        beach_conditions: [{
-                            occupancy_percent: 30,
-                            flag_status: 'green',
-                            has_jellyfish: true,
-                            recorded_at: new Date().toISOString()
-                        }]
-                    }
-                ];
-                
-                updateBeachDisplay();
-                updateTimeDisplay();
-            }
-        }
-
-        // Update beach markers on map
-        function updateBeachDisplay() {
-            // Clear existing markers
-            currentMarkers.forEach(marker => map.removeLayer(marker));
-            currentMarkers = [];
-
-            beachesData.forEach(beach => {
-                const condition = beach.beach_conditions[0]; // Latest condition
-                
-                // Apply filters
-                if (!matchesFilters(beach, condition)) return;
-
-                // Create marker with crowd level color
-                const marker = L.circleMarker([beach.latitude, beach.longitude], {
-                    radius: 14,
-                    fillColor: getCrowdColor(condition.occupancy_percent),
-                    color: getFlagColor(condition.flag_status),
-                    weight: 3,
-                    opacity: 1,
-                    fillOpacity: 0.8
-                }).addTo(map);
-
-                // Create popup content
-                const popupContent = `
-                    <div style="font-family: 'Inter', system-ui; padding: 8px; min-width: 280px;">
-                        <h4 style="margin: 0 0 8px 0; color: #1f2937; font-size: 1.3rem; font-weight: 600;">
-                            🏖️ ${beach.name}
-                        </h4>
-                        <p style="margin: 0 0 12px 0; color: #6b7280; font-size: 1rem;">
-                            📍 ${beach.municipality}
-                        </p>
-                        
-                        <div style="display: flex; align-items: center; margin: 10px 0;">
-                            <div style="width: 16px; height: 16px; background: ${getCrowdColor(condition.occupancy_percent)}; border-radius: 50%; margin-right: 10px;"></div>
-                            <span style="font-weight: 600; color: ${getCrowdColor(condition.occupancy_percent)}; font-size: 1rem;">
-                                ${condition.occupancy_percent}% Occupied
-                            </span>
-                        </div>
-                        
-                        <div style="display: flex; align-items: center; margin: 10px 0;">
-                            <div style="width: 16px; height: 12px; border-radius: 3px; margin-right: 10px; background: ${getFlagColor(condition.flag_status)};"></div>
-                            <span style="font-weight: 500; font-size: 1rem;">
-                                ${condition.flag_status.charAt(0).toUpperCase() + condition.flag_status.slice(1)} Flag
-                            </span>
-                        </div>
-                        
-                        ${condition.has_jellyfish ? 
-                            '<div style="color: #dc2626; font-weight: bold; margin: 10px 0; font-size: 1rem;">⚠️ Jellyfish Warning</div>' : 
-                            '<div style="color: #16a34a; margin: 10px 0; font-size: 1rem;">✅ No Jellyfish Reported</div>'
-                        }
-                        
-                        <small style="color: #9ca3af; margin-top: 12px; display: block; font-size: 0.9rem;">
-                            Updated: ${new Date(condition.recorded_at).toLocaleTimeString()}
-                        </small>
-                    </div>
-                `;
-
-                marker.bindPopup(popupContent);
-                currentMarkers.push(marker);
-            });
-            
-            console.log(`🗺️ Updated map with ${currentMarkers.length} beach markers`);
-        }
-
-        // Check if beach matches current filters
-        function matchesFilters(beach, condition) {
-            // Crowd level filter
-            if (activeFilters.crowd !== 'all') {
-                const occupancy = condition.occupancy_percent;
-                switch (activeFilters.crowd) {
-                    case 'peaceful':
-                        if (occupancy > 40) return false;
-                        break;
-                    case 'moderate':
-                        if (occupancy <= 40 || occupancy > 70) return false;
-                        break;
-                    case 'busy':
-                        if (occupancy <= 70) return false;
-                        break;
-                }
-            }
-            
-            // Condition filter
-            if (activeFilters.condition !== 'all') {
-                switch (activeFilters.condition) {
-                    case 'green':
-                        if (condition.flag_status !== 'green') return false;
-                        break;
-                    case 'yellow':
-                        if (condition.flag_status !== 'yellow') return false;
-                        break;
-                    case 'red':
-                        if (condition.flag_status !== 'red') return false;
-                        break;
-                    case 'no-jellyfish':
-                        if (condition.has_jellyfish) return false;
-                        break;
-                }
-            }
-            
-            return true;
-        }
-
-        // Update time display
-        function updateTimeDisplay() {
-            const now = new Date();
-            const timeString = now.toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: true 
-            });
-            const dayString = now.toLocaleDateString('en-US', { weekday: 'long' });
-            
-            document.getElementById('currentTime').innerHTML = `${dayString}<br>${timeString}`;
-        }
-
-        // Filter event handlers
-        document.addEventListener('DOMContentLoaded', function() {
-            // Type filters
-            document.querySelectorAll('[data-type]').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    document.querySelectorAll('[data-type]').forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                    activeFilters.type = this.dataset.type;
-                    updateBeachDisplay();
-                });
-            });
-
-            // Crowd filters
-            document.querySelectorAll('[data-crowd]').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    document.querySelectorAll('[data-crowd]').forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                    activeFilters.crowd = this.dataset.crowd;
-                    updateBeachDisplay();
-                });
-            });
-
-            // Condition filters
-            document.querySelectorAll('[data-condition]').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    document.querySelectorAll('[data-condition]').forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                    activeFilters.condition = this.dataset.condition;
-                    updateBeachDisplay();
-                });
-            });
-        });
-
-        // Set up real-time updates from Supabase
-        supabase
-            .channel('beach-updates')
-            .on('postgres_changes', { 
-                event: '*', 
-                schema: 'public', 
-                table: 'beach_conditions' 
-            }, (payload) => {
-                console.log('🔄 Real-time beach update:', payload);
-                loadBeachData(); // Refresh the map
-            })
-            .subscribe();
-
-        // Update time every minute
-        setInterval(updateTimeDisplay, 60000);
-
-        // Refresh beach data every 10 minutes
-        setInterval(loadBeachData, 600000);
-
-        // Initialize the application
-        loadBeachData();
-    </script>
-</body>
-</html>
+                            <button class="filter-btn active flag-btn" data-flag-filter="all">All Flags</button>
+                            <button class="filter-btn flag-btn" data-flag-filter="green
