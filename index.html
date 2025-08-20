@@ -404,4 +404,382 @@
                         <div class="filters-title">Filter by Safety Flag</div>
                         <div class="filter-buttons">
                             <button class="filter-btn active flag-btn" data-flag-filter="all">All Flags</button>
-                            <button class="filter-btn flag-btn" data-flag-filter="green
+                            <button class="filter-btn flag-btn" data-flag-filter="green" data-flag="green">Green Flag</button>
+                            <button class="filter-btn flag-btn" data-flag-filter="yellow" data-flag="yellow">Yellow Flag</button>
+                            <button class="filter-btn flag-btn" data-flag-filter="red" data-flag="red">Red Flag</button>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-section">
+                        <div class="filters-title">Filter by Marine Life</div>
+                        <div class="filter-buttons">
+                            <button class="filter-btn active jellyfish-btn" data-jellyfish-filter="all">All Beaches</button>
+                            <button class="filter-btn jellyfish-btn" data-jellyfish-filter="false">No Jellyfish</button>
+                            <button class="filter-btn jellyfish-btn" data-jellyfish-filter="true" data-jellyfish="true">Jellyfish Present</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="map-container">
+                    <div id="map"></div>
+                </div>
+            </div>
+            
+            <div class="sidebar">
+                <div class="ad-space">
+                    Beach Advertising
+                    <small>Premium advertising space</small>
+                </div>
+                
+                <div class="time-display">
+                    <h4>Current Conditions</h4>
+                    <div class="current-time" id="currentTime">Loading...</div>
+                </div>
+                
+                <div class="stats-container">
+                    <div class="stat-item">
+                        <span class="stat-label">Total Beaches</span>
+                        <span class="stat-value" id="totalBeaches">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Currently Monitored</span>
+                        <span class="stat-value" id="monitoredBeaches">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Green Flags</span>
+                        <span class="stat-value" id="greenFlags">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Yellow/Red Flags</span>
+                        <span class="stat-value" id="warningFlags">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Jellyfish Present</span>
+                        <span class="stat-value" id="jellyfishCount">-</span>
+                    </div>
+                </div>
+                
+                <div class="legend">
+                    <h4>Occupancy Levels</h4>
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background: #16a34a;"></div>
+                        <span>Low (0-33%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background: #eab308;"></div>
+                        <span>Medium (34-66%)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-icon" style="background: #dc2626;"></div>
+                        <span>High (67%+)</span>
+                    </div>
+                    
+                    <h4 style="margin-top: 20px;">Safety Flags</h4>
+                    <div class="legend-item">
+                        <div class="legend-flag" style="background: #16a34a;"></div>
+                        <span>Green - Safe conditions</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-flag" style="background: #eab308;"></div>
+                        <span>Yellow - Caution advised</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-flag" style="background: #dc2626;"></div>
+                        <span>Red - Dangerous conditions</span>
+                    </div>
+                    
+                    <h4 style="margin-top: 20px;">Marine Conditions</h4>
+                    <div class="legend-item">
+                        <span style="margin-left: 30px;">🪼 Jellyfish present</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Supabase JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        // Supabase Configuration - UPDATE THESE WITH YOUR CREDENTIALS
+        const SUPABASE_URL = 'https://przwolkudhkzkupqmomv.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByendvbGt1ZGhremt1cHFtb212Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3MTIyNDUsImV4cCI6MjA3MTI4ODI0NX0.GzLGSNnOvSgrxQ33oMoJYgcgNeZ0euUB3yjtE1eEhGY';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Initialize map centered on Mallorca
+        const map = L.map('map').setView([39.6953, 3.0176], 10);
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Store data and markers
+        let beachesData = [];
+        let currentMarkers = [];
+        let activeOccupancyFilter = 'all';
+        let activeFlagFilter = 'all';
+        let activeJellyfishFilter = 'all';
+
+        // Function to get occupancy color based on percentage
+        function getOccupancyColor(occupancy) {
+            if (occupancy >= 67) return '#dc2626'; // High - Red
+            if (occupancy >= 34) return '#eab308'; // Medium - Yellow
+            return '#16a34a'; // Low - Green
+        }
+
+        // Function to get flag color
+        function getFlagColor(flagStatus) {
+            switch (flagStatus) {
+                case 'red': return '#dc2626';
+                case 'yellow': return '#eab308';
+                case 'green': return '#16a34a';
+                default: return '#6b7280';
+            }
+        }
+
+        // Function to check if beach matches filters
+        function matchesFilters(beach) {
+            // Occupancy filter
+            if (activeOccupancyFilter !== 'all') {
+                const occupancy = beach.occupancy_display_value || 0;
+                switch (activeOccupancyFilter) {
+                    case 'low':
+                        if (occupancy >= 34) return false;
+                        break;
+                    case 'medium':
+                        if (occupancy < 34 || occupancy >= 67) return false;
+                        break;
+                    case 'high':
+                        if (occupancy < 67) return false;
+                        break;
+                }
+            }
+
+            // Flag filter
+            if (activeFlagFilter !== 'all') {
+                if (beach.flag_status !== activeFlagFilter) return false;
+            }
+
+            // Jellyfish filter
+            if (activeJellyfishFilter !== 'all') {
+                const hasJellyfish = beach.has_jellyfish === true;
+                if (activeJellyfishFilter === 'true' && !hasJellyfish) return false;
+                if (activeJellyfishFilter === 'false' && hasJellyfish) return false;
+            }
+
+            return true;
+        }
+
+        // Function to load beach data
+        async function loadBeachData() {
+            try {
+                const { data: beaches, error } = await supabase
+                    .from('beaches')
+                    .select(`
+                        *,
+                        beach_conditions!inner (
+                            occupancy_percent_raw,
+                            occupancy_display_value,
+                            flag_status,
+                            has_jellyfish,
+                            air_temperature,
+                            water_temperature,
+                            wind_speed,
+                            wave_height,
+                            scraped_at
+                        )
+                    `)
+                    .not('latitude', 'is', null)
+                    .not('longitude', 'is', null)
+                    .order('scraped_at', { foreignTable: 'beach_conditions', ascending: false });
+
+                if (error) throw error;
+
+                // Get the most recent condition for each beach
+                beachesData = beaches.map(beach => {
+                    const latestCondition = beach.beach_conditions[0];
+                    return {
+                        ...beach,
+                        ...latestCondition
+                    };
+                });
+
+                console.log(`Loaded ${beachesData.length} beaches with current conditions`);
+                updateCurrentTimeDisplay();
+                updateBeachDisplay();
+                updateStats();
+
+            } catch (error) {
+                console.error('Error loading beach data:', error);
+                document.getElementById('currentTime').innerHTML = 'Error loading data';
+            }
+        }
+
+        // Function to update current time display
+        function updateCurrentTimeDisplay() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true 
+            });
+            const dayString = now.toLocaleDateString('en-US', { weekday: 'long' });
+            
+            document.getElementById('currentTime').innerHTML = `${dayString}<br>${timeString}`;
+        }
+
+        // Function to update beach markers on map
+        function updateBeachDisplay() {
+            // Clear existing markers
+            currentMarkers.forEach(marker => map.removeLayer(marker));
+            currentMarkers = [];
+
+            let visibleCount = 0;
+
+            beachesData.forEach(beach => {
+                // Skip beaches without coordinates
+                if (!beach.latitude || !beach.longitude) return;
+
+                // Check if beach matches current filters
+                if (!matchesFilters(beach)) return;
+
+                const occupancy = beach.occupancy_display_value || 0;
+                const flagStatus = beach.flag_status || 'green';
+                const hasJellyfish = beach.has_jellyfish === true;
+
+                // Create marker with occupancy color and flag border
+                const marker = L.circleMarker([beach.latitude, beach.longitude], {
+                    radius: 10,
+                    fillColor: getOccupancyColor(occupancy),
+                    color: getFlagColor(flagStatus),
+                    weight: 3,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map);
+
+                // Add jellyfish indicator if present
+                if (hasJellyfish) {
+                    const jellyfishIcon = L.divIcon({
+                        html: '🪼',
+                        className: 'jellyfish-icon',
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    });
+                    
+                    L.marker([beach.latitude, beach.longitude], { 
+                        icon: jellyfishIcon,
+                        zIndexOffset: 1000 
+                    }).addTo(map);
+                }
+
+                // Create popup content
+                const popupContent = `
+                    <div style="font-family: 'Inter', system-ui; padding: 5px; min-width: 250px;">
+                        <h4 style="margin: 0 0 8px 0; color: #1f2937; font-size: 1.2rem; font-weight: 600;">${beach.name}</h4>
+                        <p style="margin: 0 0 12px 0; color: #6b7280; font-size: 0.95em; font-weight: 500;">${beach.municipality || 'Mallorca'}</p>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                            <div style="display: flex; align-items: center;">
+                                <div style="width: 12px; height: 12px; background: ${getOccupancyColor(occupancy)}; border-radius: 50%; margin-right: 8px;"></div>
+                                <div>
+                                    <div style="font-size: 0.8em; color: #6b7280;">Occupancy</div>
+                                    <div style="font-weight: 600; color: #374151;">${beach.occupancy_percent_raw || occupancy + '%'}</div>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; align-items: center;">
+                                <div style="width: 12px; height: 8px; background: ${getFlagColor(flagStatus)}; border-radius: 2px; margin-right: 8px;"></div>
+                                <div>
+                                    <div style="font-size: 0.8em; color: #6b7280;">Flag Status</div>
+                                    <div style="font-weight: 600; color: #374151; text-transform: capitalize;">${flagStatus}</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        ${hasJellyfish ? '<div style="color: #dc2626; font-size: 0.9em; margin-bottom: 8px;">🪼 Jellyfish present</div>' : ''}
+                        
+                        ${beach.air_temperature || beach.water_temperature || beach.wind_speed ? `
+                        <div style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px;">
+                            <div style="font-size: 0.8em; color: #6b7280; margin-bottom: 4px;">Environmental Conditions</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.85em;">
+                                ${beach.air_temperature ? `<div>Air: ${beach.air_temperature}°C</div>` : ''}
+                                ${beach.water_temperature ? `<div>Water: ${beach.water_temperature}°C</div>` : ''}
+                                ${beach.wind_speed ? `<div>Wind: ${beach.wind_speed} km/h</div>` : ''}
+                                ${beach.wave_height ? `<div>Waves: ${beach.wave_height}m</div>` : ''}
+                            </div>
+                        </div>
+                        ` : ''}
+                        
+                        <div style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px; font-size: 0.8em; color: #6b7280;">
+                            Last updated: ${beach.scraped_at ? new Date(beach.scraped_at).toLocaleTimeString() : 'Unknown'}
+                        </div>
+                    </div>
+                `;
+
+                marker.bindPopup(popupContent);
+                currentMarkers.push(marker);
+                visibleCount++;
+            });
+
+            console.log(`Updated map with ${visibleCount} beaches (filtered)`);
+        }
+
+        // Function to update statistics
+        function updateStats() {
+            const totalBeaches = beachesData.length;
+            const monitoredBeaches = beachesData.filter(beach => beach.latitude && beach.longitude).length;
+            const greenFlags = beachesData.filter(beach => beach.flag_status === 'green').length;
+            const warningFlags = beachesData.filter(beach => beach.flag_status === 'yellow' || beach.flag_status === 'red').length;
+            const jellyfishCount = beachesData.filter(beach => beach.has_jellyfish === true).length;
+
+            document.getElementById('totalBeaches').textContent = totalBeaches;
+            document.getElementById('monitoredBeaches').textContent = monitoredBeaches;
+            document.getElementById('greenFlags').textContent = greenFlags;
+            document.getElementById('warningFlags').textContent = warningFlags;
+            document.getElementById('jellyfishCount').textContent = jellyfishCount;
+        }
+
+        // Filter event listeners
+        document.querySelectorAll('.filter-btn[data-occupancy]').forEach(button => {
+            button.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn[data-occupancy]').forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+                activeOccupancyFilter = this.getAttribute('data-occupancy');
+                updateBeachDisplay();
+            });
+        });
+
+        document.querySelectorAll('.filter-btn[data-flag-filter]').forEach(button => {
+            button.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn[data-flag-filter]').forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+                activeFlagFilter = this.getAttribute('data-flag-filter');
+                updateBeachDisplay();
+            });
+        });
+
+        document.querySelectorAll('.filter-btn[data-jellyfish-filter]').forEach(button => {
+            button.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn[data-jellyfish-filter]').forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+                activeJellyfishFilter = this.getAttribute('data-jellyfish-filter');
+                updateBeachDisplay();
+            });
+        });
+
+        // Update time display every minute
+        setInterval(updateCurrentTimeDisplay, 60000);
+
+        // Auto-refresh data every 10 minutes
+        setInterval(loadBeachData, 600000);
+
+        // Initialize the application
+        loadBeachData();
+    </script>
+</body>
+</html>
