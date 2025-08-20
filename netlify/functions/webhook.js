@@ -1,17 +1,11 @@
-// netlify/functions/webhook.js
+// netlify/functions/webhook.js - UPDATE ONLY VERSION
 const { createClient } = require('@supabase/supabase-js')
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-if (!supabaseUrl || !supabaseServiceKey) {
-    console.error('❌ Missing Supabase environment variables')
-}
-
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 exports.handler = async (event, context) => {
-    // Only allow POST requests
     if (event.httpMethod !== 'POST') {
         return {
             statusCode: 405,
@@ -20,131 +14,98 @@ exports.handler = async (event, context) => {
     }
 
     try {
-        console.log('📥 Received Apify webhook')
+        console.log('📥 Received Apify webhook for beach conditions update')
         
-        // Parse the webhook body
         const body = JSON.parse(event.body)
-        console.log('Raw webhook body:', JSON.stringify(body, null, 2))
-        
-        // Get the dataset ID from the webhook
         const datasetId = body.resource?.defaultDatasetId
-        const actorRunId = body.eventData?.actorRunId
         
         if (!datasetId) {
-            console.log('❌ No dataset ID found in webhook')
             return {
                 statusCode: 400,
                 body: JSON.stringify({ message: 'No dataset ID found' })
             }
         }
         
-        console.log(`📊 Fetching data from dataset: ${datasetId}`)
+        console.log(`📊 Fetching beach conditions from dataset: ${datasetId}`)
         
-        // Fetch the actual data from Apify API
         const apifyResponse = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?format=json`)
         const apifyData = await apifyResponse.json()
         
         if (!Array.isArray(apifyData)) {
-            console.log('❌ No valid array data found from Apify API')
             return {
                 statusCode: 400,
                 body: JSON.stringify({ message: 'No valid beach data found' })
             }
         }
 
-        console.log(`📊 Processing ${apifyData.length} beach records`)
+        console.log(`📊 Processing conditions for ${apifyData.length} beaches`)
 
-        let processed = 0
+        let updated = 0
+        let notFound = 0
         let errors = 0
 
-        // Process each beach from Apify
         for (const beachRecord of apifyData) {
             try {
-                console.log(`Processing beach: ${beachRecord.name}`)
+                console.log(`Updating conditions for: ${beachRecord.name}`)
                 
-                // Create place_id from beach name
-                const placeId = beachRecord.name
-                    .toLowerCase()
-                    .replace(/\s+/g, '_')
-                    .replace(/[^a-z0-9_]/g, '')
-                
-                // First, check if beach exists
-                let { data: existingBeach, error: findError } = await supabase
+                // Find existing beach by name (you'll add lat/lng manually)
+                const { data: existingBeach, error: findError } = await supabase
                     .from('beaches')
                     .select('id')
-                    .eq('place_id', placeId)
+                    .ilike('name', `%${beachRecord.name}%`)
                     .single()
 
-                let beachId
-
-                if (existingBeach) {
-                    beachId = existingBeach.id
-                    console.log(`✅ Found existing beach: ${beachRecord.name}`)
-                } else {
-                    // Create new beach
-                    const { data: newBeach, error: insertError } = await supabase
-                        .from('beaches')
-                        .insert({
-                            place_id: placeId,
-                            name: beachRecord.name,
-                            latitude: parseFloat(beachRecord.latitude),
-                            longitude: parseFloat(beachRecord.longitude),
-                            municipality: beachRecord.municipality || 'Unknown'
-                        })
-                        .select('id')
-                        .single()
-
-                    if (insertError) {
-                        console.error(`❌ Error creating beach ${beachRecord.name}:`, insertError)
-                        errors++
-                        continue
-                    }
-
-                    beachId = newBeach.id
-                    console.log(`🆕 Created new beach: ${beachRecord.name}`)
+                if (!existingBeach) {
+                    console.log(`⚠️ Beach not found in database: ${beachRecord.name}`)
+                    notFound++
+                    continue
                 }
 
-                // Insert current conditions
+                // Insert NEW condition record (don't update existing)
                 const { error: conditionsError } = await supabase
                     .from('beach_conditions')
                     .insert({
-                        beach_id: beachId,
-                        occupancy_percent: parseInt(beachRecord.occupancy_percent) || 0,
+                        beach_id: existingBeach.id,
+                        occupancy_percent: beachRecord.occupancy_percent || null,
                         flag_status: beachRecord.flag_status || 'green',
                         has_jellyfish: Boolean(beachRecord.has_jellyfish),
+                        water_temperature: beachRecord.water_temperature || null,
+                        air_temperature: beachRecord.air_temperature || null,
+                        wind_speed: beachRecord.wind_speed || null,
+                        wave_height: beachRecord.wave_height || null,
                         recorded_at: beachRecord.scraped_at || new Date().toISOString(),
-                        source: 'apify'
+                        source: 'apify_live'
                     })
 
                 if (conditionsError) {
-                    console.error(`❌ Error inserting conditions for ${beachRecord.name}:`, conditionsError)
+                    console.error(`❌ Error updating conditions for ${beachRecord.name}:`, conditionsError)
                     errors++
                 } else {
-                    console.log(`🌊 Updated conditions for: ${beachRecord.name}`)
-                    processed++
+                    console.log(`✅ Updated conditions for: ${beachRecord.name}`)
+                    updated++
                 }
 
             } catch (beachError) {
-                console.error(`❌ Error processing beach ${beachRecord.name}:`, beachError)
+                console.error(`❌ Error processing ${beachRecord.name}:`, beachError)
                 errors++
             }
         }
 
-        console.log(`✅ Webhook complete: ${processed} processed, ${errors} errors`)
+        console.log(`✅ Conditions update complete: ${updated} updated, ${notFound} not found, ${errors} errors`)
         
         return {
             statusCode: 200,
             body: JSON.stringify({ 
-                message: 'Beach data processed successfully',
-                processed: processed,
+                message: 'Beach conditions updated successfully',
+                updated: updated,
+                notFound: notFound,
                 errors: errors,
                 total: apifyData.length
             })
         }
 
     } catch (error) {
-        console.error('❌ Webhook handler failed:', error)
-        
+        console.error('❌ Webhook failed:', error)
         return {
             statusCode: 500,
             body: JSON.stringify({ 
